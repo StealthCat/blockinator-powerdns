@@ -1,0 +1,25 @@
+name: PowerDNS integration
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  recursor:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install Recursor and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pdns-recursor
+          pip install -r requirements.txt pytest
+      - name: Run bridge and live Recursor tests
+        run: python -m pytest -q tests/test_powerdns.py

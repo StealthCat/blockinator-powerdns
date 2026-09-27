@@ -1,0 +1,21 @@
+[Unit]
+Description=Blockinator policy bridge for PowerDNS Recursor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/blockinator-powerdns.env
+ExecStart=/opt/blockinator-powerdns/venv/bin/python /opt/blockinator-powerdns/bridge.py
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
