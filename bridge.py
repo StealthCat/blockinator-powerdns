@@ -131,7 +131,10 @@ class Bridge(asyncio.DatagramProtocol):
     async def respond(self, payload, address):
         try:
             action = await asyncio.wait_for(self.decision(payload), self.config.timeout)
-        except (httpx.HTTPError, ValueError, TimeoutError):
+        except Exception:  # noqa: BLE001 - Recursor must always receive a reply
+            # Includes HTTP/TLS errors, timeouts (asyncio.TimeoutError is distinct
+            # from the builtin before Python 3.11), malformed JSON and RecursionError
+            # from deeply nested bodies. CancelledError is not an Exception.
             self.failed += 1
             action = b"error"
         if self.transport is not None and not self.transport.is_closing():
@@ -143,6 +146,16 @@ class Bridge(asyncio.DatagramProtocol):
         for task in list(self.tasks):
             task.cancel()
         await asyncio.gather(*self.tasks, return_exceptions=True)
+
+
+def report_counters(bridge, previous):
+    """Log failure counters only when they changed since the previous report."""
+    current = (bridge.failed, bridge.overloaded, bridge.invalid)
+    if current != previous:
+        failed, overloaded, invalid = (now - before for now, before in zip(current, previous))
+        LOG.warning("Last interval: policy failures=%d overloads=%d invalid packets=%d "
+                    "(totals %d/%d/%d)", failed, overloaded, invalid, *current)
+    return current
 
 
 async def serve(config):
@@ -159,15 +172,14 @@ async def serve(config):
         bridge = Bridge(config, client)
         await loop.create_datagram_endpoint(lambda: bridge, local_addr=("127.0.0.1", config.port))
         LOG.info("Listening on 127.0.0.1:%s", config.port)
+        reported = (0, 0, 0)
         try:
             while not stop.is_set():
                 try:
                     await asyncio.wait_for(stop.wait(), 60)
-                except TimeoutError:
+                except asyncio.TimeoutError:  # builtin TimeoutError only from 3.11
                     pass
-                if bridge.failed or bridge.overloaded or bridge.invalid:
-                    LOG.warning("Policy failures=%d overloads=%d invalid packets=%d (cumulative)",
-                                bridge.failed, bridge.overloaded, bridge.invalid)
+                reported = report_counters(bridge, reported)
         finally:
             await bridge.close()
 
