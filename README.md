@@ -16,6 +16,41 @@ normal recursion. Blocked queries receive the configured Blockinator response:
 | `nodata` | NOERROR with no answers |
 | `zero` | `0.0.0.0` for A, `::` for AAAA, no answers for other types |
 
+## Download an installation bundle
+
+The **Build PowerDNS integration** workflow tests the bridge and Lua hook against
+a real Ubuntu 24.04 PowerDNS Recursor on Python **3.10** and **3.12**, then creates
+`blockinator-powerdns_v<version>.tar.gz` and its `.sha256` checksum.
+It runs on pushes, pull requests, manual runs, and published releases.
+
+Download the archive and checksum from a release. For an Actions run, extract
+GitHub's outer artifact ZIP first. Verify and extract the bundle:
+
+```bash
+sha256sum -c blockinator-powerdns_v1.0.0.tar.gz.sha256
+tar -xzf blockinator-powerdns_v1.0.0.tar.gz
+cd blockinator-powerdns_v1.0.0
+```
+
+Substitute the version you downloaded. The bundle contains `bridge.py`,
+`blockinator.lua`, pinned Python requirements, the systemd unit, an example
+environment file, documentation, license, and build metadata. It works on the
+host architecture supported by your installed Python and Recursor; it contains
+no compiled resolver binary. Python dependencies and PowerDNS Recursor must be
+installed separately using the instructions below.
+
+From the extracted directory, skip the `git clone` and `cd` commands below and
+start at `sudo apt-get install python3-venv`. Configure the API key, install the
+bridge service and Lua hook, and enable the hook in your Recursor configuration.
+This package targets **PowerDNS Recursor**, not Authoritative or dnsdist.
+
+After this workflow is merged, publishing a release automatically attaches the
+bundle and checksum once both Python test jobs pass. The release tag must match
+the first version in `CHANGELOG.md` (for example `1.0.0`, `v1.0.0`, or `1.0`
+for changelog version `1.0.0`). Pushes and manual builds use the changelog version.
+To create the same bundle locally, run `python3 tools/package.py` from the
+repository root; packages are written to `dist/`.
+
 ## Install on the Recursor host
 
 These instructions target Linux with systemd, Python 3.10+ and an existing
