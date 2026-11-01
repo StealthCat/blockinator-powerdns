@@ -151,7 +151,8 @@ behavior. This integration evaluates the original client question, not every
 CNAME target contacted during recursion. Query wire bytes and EDNS metadata are
 not sent to Blockinator.
 
-The bridge logs cumulative error/overload counts at most once per minute without
+When failures occur, the bridge logs the per-minute and total error/overload
+counts at most once per minute (and stays quiet while they are unchanged), without
 logging API keys or individual queries. API failures include non-2xx responses,
 redirects, malformed decisions, TLS failures and timeouts. In fail-open mode,
 those queries can resolve without a Blockinator query-log entry.

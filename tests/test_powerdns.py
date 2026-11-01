@@ -93,6 +93,8 @@ def test_http_errors_timeout_and_concurrency():
             name = json.loads(request.content)["dns"]["questions"][0]["name"]
             if name == "slow.":
                 await asyncio.sleep(1)
+            if name == "nested.":
+                return httpx.Response(200, content=b"[" * 16000)
             if name == "large.":
                 return httpx.Response(200, content=b"x" * 20000)
             if name == "auth.":
@@ -107,10 +109,10 @@ def test_http_errors_timeout_and_concurrency():
             transport = Transport()
             service.connection_made(transport)
             address = ("127.0.0.1", 1234)
-            for name in ("allow.", "auth.", "redirect.", "large.", "slow."):
+            for name in ("allow.", "auth.", "redirect.", "large.", "nested.", "slow."):
                 await service.respond(bridge.decode_query(packet(name), "p"), address)
-            assert [a[0] for a in transport.answers] == [b"allow"] + [b"error"] * 4
-            assert service.failed == 4
+            assert [a[0] for a in transport.answers] == [b"allow"] + [b"error"] * 5
+            assert service.failed == 5
             assert all(r.headers["X-API-Key"] == KEY for r in requests)
             service.datagram_received(packet("slow."), address)
             service.datagram_received(packet(), address)
@@ -122,6 +124,18 @@ def test_http_errors_timeout_and_concurrency():
             await service.close()
             assert not service.tasks
     asyncio.run(run())
+
+
+def test_counter_reports_only_changes(caplog):
+    service = bridge.Bridge(bridge.Config("https://policy.example/api/v1/decision", KEY), None)
+    assert bridge.report_counters(service, (0, 0, 0)) == (0, 0, 0)
+    assert not caplog.records
+    service.failed, service.invalid = 3, 1
+    state = bridge.report_counters(service, (0, 0, 0))
+    assert state == (3, 0, 1) and "failures=3" in caplog.text
+    caplog.clear()
+    assert bridge.report_counters(service, state) == state
+    assert not caplog.records
 
 
 def free_port(kind=socket.SOCK_DGRAM):
